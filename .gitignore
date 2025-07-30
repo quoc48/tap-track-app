@@ -6,8 +6,11 @@ node_modules/
 # Expo
 .expo/
 dist/
-web-build/
-expo-env.d.ts
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
 
 # Native
 .kotlin/
@@ -35,3 +38,11 @@ yarn-error.*
 
 # typescript
 *.tsbuildinfo
+
+# VS Code
+.vscode/
+
+# Environment
+.env
+.env.local
+" >> .gitignore
