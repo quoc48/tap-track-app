@@ -1,32 +1,21 @@
-// Replace nội dung App.tsx
+// App.tsx - Add NumberPad
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, SafeAreaView } from 'react-native';
-import { StatusBar } from 'expo-status-bar';
+import { View, Text, SafeAreaView, StyleSheet } from 'react-native';
 import { AmountInput } from './src/components/AmountInput';
-import { Colors, Spacing, FontSizes } from './src/constants/theme';
+import { NumberPad } from './src/components/NumberPad';
 
 export default function App() {
-  const [amount, setAmount] = useState('20000');
+  const [amount, setAmount] = useState('');
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar style="auto" />
-      
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.dateText}>Hôm nay</Text>
-        <Text style={styles.totalText}>0₫</Text>
-      </View>
-
-      {/* Amount Input */}
+      <Text style={styles.title}>Test NumberPad</Text>
       <AmountInput amount={amount} />
-
-      {/* Smart Suggestion */}
-      <View style={styles.suggestionContainer}>
-        <Text style={styles.suggestionText}>
-          ☕ Thường là cà phê buổi sáng
-        </Text>
-      </View>
+      <NumberPad
+        onNumberPress={(num) => setAmount(amount + num)}
+        onDeletePress={() => setAmount(amount.slice(0, -1))}
+        onClearPress={() => setAmount('')}
+      />
     </SafeAreaView>
   );
 }
@@ -34,33 +23,11 @@ export default function App() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: '#fff',
   },
-  header: {
-    alignItems: 'center',
-    paddingTop: Spacing.lg,
-    paddingBottom: Spacing.md,
-  },
-  dateText: {
-    fontSize: FontSizes.md,
-    color: Colors.textSecondary,
-  },
-  totalText: {
-    fontSize: FontSizes.xl,
-    fontWeight: '600',
-    marginTop: Spacing.xs,
-    color: Colors.text,
-  },
-  suggestionContainer: {
-    alignItems: 'center',
-    paddingHorizontal: Spacing.lg,
-  },
-  suggestionText: {
-    backgroundColor: Colors.surface,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderRadius: 20,
-    fontSize: FontSizes.sm,
-    color: Colors.textSecondary,
+  title: {
+    fontSize: 24,
+    textAlign: 'center',
+    marginTop: 50,
   },
 });

@@ -1,10 +1,13 @@
-// Tạo file: src/types/index.ts
+// File: src/types/index.ts
 export interface Transaction {
   id: string;
   amount: number;
-  category: Category;
-  date: Date;
-  createdAt: Date;
+  title?: string;              // Optional title
+  categoryId: string;
+  categoryName: string;
+  categoryIcon: string;
+  date: string;
+  timestamp: number;
 }
 
 export interface Category {
