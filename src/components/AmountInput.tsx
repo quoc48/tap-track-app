@@ -1,25 +1,23 @@
-// Tạo file: src/components/AmountInput.tsx
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import { Colors, FontSizes, Spacing } from '../constants/theme';
+// src/components/AmountInput.tsx
+import * as React from 'react';
+import { View, Text, StyleSheet, Animated } from 'react-native';
 
 interface AmountInputProps {
   amount: string;
 }
 
 export const AmountInput: React.FC<AmountInputProps> = ({ amount }) => {
-  // Format number với comma separator
-   const formatAmount = (value:string): string => {
-    if (!value || value === '0') return '0';
+  console.log('AmountInput received:', amount);
+  const formatAmount = (value: string): string => {
+    if (!value || value === '') return '0';
     
-    // Remove non-digits
-    const number = value.replace(/\D/g, '');
-    if (!number) return '0'; // Handle empty string after regex
+    // Remove all non-digits
+    const numericValue = value.replace(/\D/g, '');
     
-    // Add thousand separators
-    const parsed = parseInt(number);
-    if (isNaN(parsed)) return '0'; //Handle NaN
-    };
+    // Convert to number and format
+    const number = parseInt(numericValue) || 0;
+    return number.toLocaleString('vi-VN');
+  };
 
   return (
     <View style={styles.container}>
@@ -37,24 +35,25 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: Spacing.xxl,
+    paddingVertical: 30,
+    minHeight: 120,
   },
   currency: {
     fontSize: 48,
-    color: Colors.textSecondary,
-    marginRight: Spacing.sm,
+    color: '#666666',
+    marginRight: 8,
   },
   amount: {
-    fontSize: FontSizes.huge,
+    fontSize: 72,
     fontWeight: '200',
-    color: Colors.text,
+    color: '#000000',
     letterSpacing: -2,
+    minWidth: 50, // Ensure space for display
   },
   cursor: {
     width: 3,
     height: 60,
-    backgroundColor: Colors.primary,
-    marginLeft: Spacing.xs,
-    // Blinking animation will be added later
+    backgroundColor: '#007AFF',
+    marginLeft: 4,
   },
 });

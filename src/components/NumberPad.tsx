@@ -14,6 +14,7 @@ export const NumberPad: React.FC<NumberPadProps> = ({
   onDeletePress,
   onClearPress
 }) => {
+
   const numbers = [
     ['1', '2', '3'],
     ['4', '5', '6'],
@@ -22,8 +23,7 @@ export const NumberPad: React.FC<NumberPadProps> = ({
   ];
 
   const handlePress = (value: string) => {
-    // Comment out Haptics for now to avoid issues
-    // Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    console.log('Button pressed:', value); // ADD THIS
     
     if (value === '←') {
       onDeletePress();
