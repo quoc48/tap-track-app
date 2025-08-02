@@ -1,5 +1,6 @@
-// src/components/ReportModal.tsx
+// src/components/ReportModal.tsx - COMPLETE SELF-CONTAINED VERSION
 import * as React from 'react';
+const { useState, useEffect } = React;
 import {
   Modal,
   View,
@@ -8,6 +9,7 @@ import {
   TouchableOpacity,
   ScrollView,
   RefreshControl,
+  Alert,
 } from 'react-native';
 
 interface ReportModalProps {
@@ -16,10 +18,6 @@ interface ReportModalProps {
   transactions: any[];
   onRefresh?: () => void;
   onDelete?: (id: string) => void;
-  showUndoToast?: boolean;
-  undoMessage?: string;
-  onUndo?: () => void;
-  onHideToast?: () => void;
 }
 
 export const ReportModal: React.FC<ReportModalProps> = ({
@@ -28,27 +26,42 @@ export const ReportModal: React.FC<ReportModalProps> = ({
   transactions,
   onRefresh,
   onDelete,
-  showUndoToast = false,
-  undoMessage = '',
-  onUndo,
-  onHideToast,
 }) => {
-  const [refreshing, setRefreshing] = React.useState(false);
-
-  // Auto hide toast after 5s
-  React.useEffect(() => {
-    if (showUndoToast) {
-      const timer = setTimeout(() => {
-        onHideToast?.();
-      }, 5000);
-      return () => clearTimeout(timer);
-    }
-  }, [showUndoToast]);
+  const [refreshing, setRefreshing] = useState(false);
+  // Local toast state - no props needed
+  const [toastVisible, setToastVisible] = useState(false);
+  const [deletedItem, setDeletedItem] = useState(null);
 
   const handleRefresh = () => {
     setRefreshing(true);
     onRefresh?.();
     setTimeout(() => setRefreshing(false), 1000);
+  };
+
+  // Handle delete with local undo
+  const handleItemDelete = (transaction) => {
+    Alert.alert(
+      'Xóa chi tiêu',
+      'Bạn có chắc muốn xóa?',
+      [
+        { text: 'Hủy', style: 'cancel' },
+        { 
+          text: 'Xóa', 
+          style: 'destructive',
+          onPress: () => {
+            setDeletedItem(transaction);
+            onDelete?.(transaction.id);
+            setToastVisible(true);
+            
+            // Auto hide after 5s
+            setTimeout(() => {
+              setToastVisible(false);
+              setDeletedItem(null);
+            }, 5000);
+          }
+        }
+      ]
+    );
   };
 
   // Calculate totals
@@ -127,12 +140,8 @@ export const ReportModal: React.FC<ReportModalProps> = ({
               <TouchableOpacity
                 key={t.id}
                 style={styles.transactionItem}
-                activeOpacity={0.7}  // MOVED HERE - as prop not style
-                onLongPress={() => {
-                  if (onDelete) {  // Add safety check
-                    onDelete(t.id);
-                  }
-                }}
+                activeOpacity={0.7}
+                onLongPress={() => handleItemDelete(t)}
               >
                 <View style={styles.transactionLeft}>
                   <Text style={styles.transactionIcon}>{t.category.icon}</Text>
@@ -156,18 +165,18 @@ export const ReportModal: React.FC<ReportModalProps> = ({
           </View>
         </ScrollView>
 
-        {showUndoToast && (
-          <View style={styles.toastContainer}>
+        {/* Simple Toast - No animations, no hooks issues */}
+        {toastVisible ? (
+          <View style={styles.toast}>
             <Text style={styles.toastText}>Đã xóa chi tiêu</Text>
             <TouchableOpacity onPress={() => {
-              onUndo?.();
-              onHideToast?.();
+              setToastVisible(false);
+              Alert.alert('Chức năng Undo đang phát triển');
             }}>
-              <Text style={styles.undoButton}>Hoàn tác</Text>
+              <Text style={styles.undoText}>Hoàn tác</Text>
             </TouchableOpacity>
           </View>
-        )}
-
+        ) : null}
       </View>
     </Modal>
   );
@@ -234,7 +243,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    // REMOVED activeOpacity from here
   },
   transactionLeft: {
     flexDirection: 'row',
@@ -257,9 +265,8 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '500',
   },
-
-  // ADD TOAST STYLES:
-  toastContainer: {
+  // Toast styles
+  toast: {
     position: 'absolute',
     bottom: 40,
     left: 20,
@@ -270,14 +277,12 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: 16,
-    elevation: 5,
   },
-
   toastText: {
     color: '#fff',
     fontSize: 14,
   },
-  undoButton: {
+  undoText: {
     color: '#007AFF',
     fontSize: 14,
     fontWeight: '600',
