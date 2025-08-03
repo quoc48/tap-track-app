@@ -46,3 +46,4 @@ yarn-error.*
 .env
 .env.local
 " >> .gitignore
+.env

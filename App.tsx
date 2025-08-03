@@ -1,4 +1,4 @@
-// App.tsx - COMPLETE FIXED VERSION
+// App.tsx - COMPLETE UPDATED VERSION WITH TEST CODE
 import * as React from 'react';
 import { View, Platform } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
@@ -8,9 +8,19 @@ import { ReportScreen } from './src/screens/ReportScreen';
 import { TransactionProvider } from './src/context/TransactionContext';
 import { Ionicons } from '@expo/vector-icons';
 
+// THÊM IMPORT NÀY ĐỂ TEST SUPABASE CONNECTION
+import { testSupabaseConnection } from './src/lib/testSupabase';
+
 const Tab = createBottomTabNavigator();
 
 export default function App() {
+  // THÊM USEEFFECT NÀY ĐỂ TEST CONNECTION KHI APP START
+  React.useEffect(() => {
+    // Test Supabase connection khi app khởi động
+    console.log('🚀 App started, testing Supabase connection...');
+    testSupabaseConnection();
+  }, []);
+
   return (
     <TransactionProvider>
       <NavigationContainer>
