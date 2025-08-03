@@ -1,23 +1,8 @@
-// src/context/TransactionContext.tsx - SIMPLIFIED VERSION
+// src/context/TransactionContext.tsx - FIXED VERSION
 import * as React from 'react';
 const { createContext, useContext, useState, useEffect } = React;
 import AsyncStorage from '@react-native-async-storage/async-storage';
-
-interface Transaction {
-  id: string;
-  amount: number;
-  category: any;
-  timestamp: string;
-  title?: string;
-}
-
-interface CategoryStat {
-  categoryId: string;
-  categoryName: string;
-  categoryIcon: string;
-  count: number;
-  totalAmount: number;
-}
+import { Transaction, CategoryStat } from '../types';
 
 interface TransactionContextType {
   transactions: Transaction[];
@@ -48,7 +33,27 @@ export const TransactionProvider = ({ children }) => {
     try {
       const saved = await AsyncStorage.getItem('@transactions');
       if (saved) {
-        setTransactions(JSON.parse(saved));
+        const parsedData = JSON.parse(saved);
+        
+        // Handle legacy data migration
+        const migratedData = parsedData.map(t => {
+          // If old format with category object
+          if (t.category && typeof t.category === 'object') {
+            return {
+              ...t,
+              categoryId: t.categoryId || t.category.id,
+              categoryName: t.categoryName || t.category.name,
+              categoryIcon: t.categoryIcon || t.category.icon,
+              expenseType: t.expenseType || 'incidental',
+              transactionDate: t.transactionDate || t.timestamp,
+              createdAt: t.createdAt || t.timestamp,
+              description: t.description || t.title || undefined,
+            };
+          }
+          return t;
+        });
+        
+        setTransactions(migratedData);
       }
     } catch (e) {
       console.log('Load error:', e);
@@ -64,7 +69,7 @@ export const TransactionProvider = ({ children }) => {
   };
 
   const addTransaction = async (transaction: Omit<Transaction, 'id'>) => {
-    const newTransaction = {
+    const newTransaction: Transaction = {
       ...transaction,
       id: Date.now().toString(),
     };
@@ -85,7 +90,7 @@ export const TransactionProvider = ({ children }) => {
     weekAgo.setDate(weekAgo.getDate() - 7);
     
     const weeklyTransactions = transactions.filter(t => {
-      const transDate = new Date(t.timestamp);
+      const transDate = new Date(t.transactionDate || t.timestamp);
       return transDate >= weekAgo;
     });
 
@@ -93,7 +98,7 @@ export const TransactionProvider = ({ children }) => {
     const statsMap = new Map<string, CategoryStat>();
     
     weeklyTransactions.forEach(t => {
-      const catId = t.category.id;
+      const catId = t.categoryId;
       if (statsMap.has(catId)) {
         const stat = statsMap.get(catId)!;
         stat.count += 1;
@@ -101,18 +106,18 @@ export const TransactionProvider = ({ children }) => {
       } else {
         statsMap.set(catId, {
           categoryId: catId,
-          categoryName: t.category.name,
-          categoryIcon: t.category.icon,
+          categoryName: t.categoryName,
+          categoryIcon: t.categoryIcon,
           count: 1,
           totalAmount: t.amount,
         });
       }
     });
 
-    // Sort by count and return top 3
+    // Sort by totalAmount and return top 3
     return Array.from(statsMap.values())
-    .sort((a, b) => b.totalAmount - a.totalAmount)  // Sort by money
-    .slice(0, 3);
+      .sort((a, b) => b.totalAmount - a.totalAmount)
+      .slice(0, 3);
   };
 
   return (

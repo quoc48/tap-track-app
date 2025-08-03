@@ -1,4 +1,4 @@
-// src/screens/ReportScreen.tsx
+// src/screens/ReportScreen.tsx - FIXED VERSION
 import * as React from 'react';
 const { useState, useCallback } = React;
 import {
@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useTransactions } from '../context/TransactionContext';
+import { EXPENSE_TYPE_LABELS, EXPENSE_TYPE_COLORS } from '../constants/categories';
 
 export const ReportScreen = () => {
   const { transactions, deleteTransaction, loadTransactions } = useTransactions();
@@ -55,15 +56,15 @@ export const ReportScreen = () => {
     );
   };
 
-  // Calculate totals
+  // Calculate totals - FIXED to use new date fields
   const today = new Date().toDateString();
   const todayTotal = transactions
-    .filter(t => new Date(t.timestamp).toDateString() === today)
+    .filter(t => new Date(t.transactionDate || t.timestamp).toDateString() === today)
     .reduce((sum, t) => sum + t.amount, 0);
 
   const weekTotal = transactions
     .filter(t => {
-      const date = new Date(t.timestamp);
+      const date = new Date(t.transactionDate || t.timestamp);
       const weekAgo = new Date();
       weekAgo.setDate(weekAgo.getDate() - 7);
       return date >= weekAgo;
@@ -72,7 +73,7 @@ export const ReportScreen = () => {
 
   const monthTotal = transactions
     .filter(t => {
-      const date = new Date(t.timestamp);
+      const date = new Date(t.transactionDate || t.timestamp);
       const monthStart = new Date();
       monthStart.setDate(1);
       return date >= monthStart;
@@ -128,22 +129,32 @@ export const ReportScreen = () => {
                 onLongPress={() => handleDelete(t.id)}
               >
                 <View style={styles.transactionLeft}>
-                  <Text style={styles.transactionIcon}>{t.category.icon}</Text>
-                  <View>
+                  <Text style={styles.transactionIcon}>{t.categoryIcon}</Text>
+                  <View style={styles.transactionInfo}>
                     <Text style={styles.transactionName}>
-                      {t.title || t.category.name}
+                      {t.description || t.categoryName}
                     </Text>
                     <Text style={styles.transactionTime}>
-                      {new Date(t.timestamp).toLocaleTimeString('vi-VN', {
+                      {new Date(t.transactionDate || t.timestamp).toLocaleTimeString('vi-VN', {
                         hour: '2-digit',
                         minute: '2-digit',
                       })}
                     </Text>
                   </View>
                 </View>
-                <Text style={styles.transactionAmount}>
-                  {t.amount.toLocaleString('vi-VN')}₫
-                </Text>
+                <View style={styles.transactionRight}>
+                  <Text style={styles.transactionAmount}>
+                    {t.amount.toLocaleString('vi-VN')}₫
+                  </Text>
+                  {t.expenseType && (
+                    <Text style={[
+                      styles.expenseTypeLabel,
+                      { color: EXPENSE_TYPE_COLORS[t.expenseType] || '#666' }
+                    ]}>
+                      {EXPENSE_TYPE_LABELS[t.expenseType] || t.expenseType}
+                    </Text>
+                  )}
+                </View>
               </TouchableOpacity>
             ))
           )}
@@ -217,10 +228,14 @@ const styles = StyleSheet.create({
   transactionLeft: {
     flexDirection: 'row',
     alignItems: 'center',
+    flex: 1,
   },
   transactionIcon: {
     fontSize: 24,
     marginRight: 12,
+  },
+  transactionInfo: {
+    flex: 1,
   },
   transactionName: {
     fontSize: 16,
@@ -231,9 +246,17 @@ const styles = StyleSheet.create({
     color: '#666',
     marginTop: 2,
   },
+  transactionRight: {
+    alignItems: 'flex-end',
+  },
   transactionAmount: {
     fontSize: 18,
     fontWeight: '500',
+  },
+  expenseTypeLabel: {
+    fontSize: 12,
+    fontWeight: '500',
+    marginTop: 2,
   },
   toast: {
     position: 'absolute',
