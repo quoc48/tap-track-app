@@ -1,18 +1,22 @@
-// src/context/TransactionContext.tsx - FIXED VERSION
+// src/context/TransactionContext.tsx - NO AUTH VERSION
 import * as React from 'react';
 const { createContext, useContext, useState, useEffect } = React;
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { TransactionService } from '../services/transactionService';
 import { Transaction, CategoryStat } from '../types';
 
 interface TransactionContextType {
   transactions: Transaction[];
+  loading: boolean;
+  isAuthenticated: boolean;
   addTransaction: (transaction: Omit<Transaction, 'id'>) => Promise<void>;
   deleteTransaction: (id: string) => Promise<void>;
   loadTransactions: () => Promise<void>;
   getWeeklyCategoryStats: () => CategoryStat[];
+  migrateData: () => Promise<{ success: boolean; imported: number }>;
 }
 
-const TransactionContext = createContext<TransactionContextType>(null);
+const TransactionContext = createContext<TransactionContextType | null>(null);
 
 export const useTransactions = () => {
   const context = useContext(TransactionContext);
@@ -22,22 +26,57 @@ export const useTransactions = () => {
   return context;
 };
 
-export const TransactionProvider = ({ children }) => {
+export const TransactionProvider = ({ children }: { children: React.ReactNode }) => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [isAuthenticated] = useState(true); // Always authenticated for testing
 
   useEffect(() => {
-    loadTransactions();
+    console.log('🔄 TransactionProvider initializing (no auth mode)...');
+    initializeData();
   }, []);
+
+  const initializeData = async () => {
+    try {
+      // Load from Supabase first
+      await loadTransactions();
+      
+      // Check for migration
+      await checkAndMigrate();
+    } catch (error) {
+      console.error('❌ Initialize data failed:', error);
+      // Fallback to local storage
+      await loadTransactionsFromLocal();
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const loadTransactions = async () => {
     try {
+      console.log('📊 Loading transactions from Supabase (no auth)...');
+      
+      const expenses = await TransactionService.getExpenses();
+      console.log(`✅ Loaded ${expenses.length} transactions from Supabase`);
+      setTransactions(expenses);
+    } catch (error) {
+      console.error('❌ Load transactions from Supabase failed:', error);
+      
+      // Fallback to local storage
+      console.log('🔄 Falling back to local storage...');
+      await loadTransactionsFromLocal();
+    }
+  };
+
+  const loadTransactionsFromLocal = async () => {
+    try {
+      console.log('📱 Loading transactions from AsyncStorage...');
       const saved = await AsyncStorage.getItem('@transactions');
       if (saved) {
         const parsedData = JSON.parse(saved);
         
         // Handle legacy data migration
-        const migratedData = parsedData.map(t => {
-          // If old format with category object
+        const migratedData = parsedData.map((t: any) => {
           if (t.category && typeof t.category === 'object') {
             return {
               ...t,
@@ -53,48 +92,117 @@ export const TransactionProvider = ({ children }) => {
           return t;
         });
         
+        console.log(`✅ Loaded ${migratedData.length} transactions from local storage`);
         setTransactions(migratedData);
+      } else {
+        console.log('ℹ️ No local transactions found');
+        setTransactions([]);
       }
     } catch (e) {
-      console.log('Load error:', e);
+      console.error('❌ Load from local storage failed:', e);
+      setTransactions([]);
     }
   };
 
-  const saveToStorage = async (data: Transaction[]) => {
+  const saveToLocalStorage = async (data: Transaction[]) => {
     try {
       await AsyncStorage.setItem('@transactions', JSON.stringify(data));
+      console.log(`💾 Saved ${data.length} transactions to local storage`);
     } catch (e) {
-      console.log('Save error:', e);
+      console.error('❌ Save to local storage failed:', e);
     }
   };
 
   const addTransaction = async (transaction: Omit<Transaction, 'id'>) => {
-    const newTransaction: Transaction = {
-      ...transaction,
-      id: Date.now().toString(),
-    };
-    const updated = [newTransaction, ...transactions];
-    setTransactions(updated);
-    await saveToStorage(updated);
+    try {
+      console.log('➕ Adding transaction (no auth):', transaction.amount, transaction.categoryName);
+      
+      // Generate optimistic ID
+      const tempId = `temp-${Date.now()}`;
+      const tempTransaction: Transaction = {
+        ...transaction,
+        id: tempId,
+        createdAt: transaction.createdAt || new Date().toISOString(),
+      };
+
+      // Optimistic update
+      setTransactions(prev => [tempTransaction, ...prev]);
+
+      try {
+        console.log('☁️ Saving to Supabase (no auth)...');
+        const savedTransaction = await TransactionService.addExpense(transaction);
+        
+        // Replace temp transaction with real one
+        setTransactions(prev => 
+          prev.map(t => t.id === tempId ? savedTransaction : t)
+        );
+        
+        console.log('✅ Transaction saved to Supabase with ID:', savedTransaction.id);
+      } catch (supabaseError) {
+        console.error('❌ Supabase save failed:', supabaseError);
+        console.log('💾 Keeping temp transaction in local storage');
+      }
+
+      // Always save to local storage as backup
+      const currentTransactions = await getCurrentTransactions();
+      await saveToLocalStorage(currentTransactions);
+
+    } catch (error) {
+      console.error('❌ Add transaction failed:', error);
+      
+      // Revert optimistic update
+      setTransactions(prev => prev.filter(t => t.id !== tempId));
+      throw error;
+    }
   };
 
   const deleteTransaction = async (id: string) => {
-    const updated = transactions.filter(t => t.id !== id);
-    setTransactions(updated);
-    await saveToStorage(updated);
+    try {
+      console.log('🗑️ Deleting transaction (no auth):', id);
+      
+      // Optimistic update
+      const originalTransactions = transactions;
+      setTransactions(prev => prev.filter(t => t.id !== id));
+
+      if (!id.startsWith('temp-')) {
+        try {
+          await TransactionService.deleteExpense(id);
+          console.log('✅ Transaction deleted from Supabase');
+        } catch (supabaseError) {
+          console.error('❌ Supabase delete failed:', supabaseError);
+          setTransactions(originalTransactions);
+          throw supabaseError;
+        }
+      }
+
+      // Update local storage
+      const updatedTransactions = originalTransactions.filter(t => t.id !== id);
+      await saveToLocalStorage(updatedTransactions);
+
+    } catch (error) {
+      console.error('❌ Delete transaction failed:', error);
+      throw error;
+    }
+  };
+
+  const getCurrentTransactions = async (): Promise<Transaction[]> => {
+    return new Promise(resolve => {
+      setTransactions(current => {
+        resolve(current);
+        return current;
+      });
+    });
   };
 
   const getWeeklyCategoryStats = (): CategoryStat[] => {
-    // Get transactions from last 7 days
     const weekAgo = new Date();
     weekAgo.setDate(weekAgo.getDate() - 7);
     
     const weeklyTransactions = transactions.filter(t => {
-      const transDate = new Date(t.transactionDate || t.timestamp);
+      const transDate = new Date(t.transactionDate);
       return transDate >= weekAgo;
     });
 
-    // Calculate stats by category
     const statsMap = new Map<string, CategoryStat>();
     
     weeklyTransactions.forEach(t => {
@@ -114,19 +222,57 @@ export const TransactionProvider = ({ children }) => {
       }
     });
 
-    // Sort by totalAmount and return top 3
     return Array.from(statsMap.values())
       .sort((a, b) => b.totalAmount - a.totalAmount)
       .slice(0, 3);
   };
 
+  const migrateData = async (): Promise<{ success: boolean; imported: number }> => {
+    try {
+      console.log('🔄 Starting data migration (no auth)...');
+      
+      const result = await TransactionService.migrateFromAsyncStorage();
+      
+      if (result.success && result.imported > 0) {
+        console.log(`✅ Migration completed: ${result.imported} transactions`);
+        await loadTransactions();
+      }
+      
+      return result;
+    } catch (error) {
+      console.error('❌ Migration failed:', error);
+      return { success: false, imported: 0 };
+    }
+  };
+
+  const checkAndMigrate = async () => {
+    try {
+      const needsMigration = await TransactionService.needsMigration();
+      if (needsMigration) {
+        console.log('🔄 Auto-migration needed');
+        const result = await migrateData();
+        
+        if (result.success && result.imported > 0) {
+          console.log(`🎉 Auto-migrated ${result.imported} transactions!`);
+        }
+      } else {
+        console.log('ℹ️ No migration needed');
+      }
+    } catch (error) {
+      console.error('❌ Auto-migration check failed:', error);
+    }
+  };
+
   return (
     <TransactionContext.Provider value={{
       transactions,
+      loading,
+      isAuthenticated,
       addTransaction,
       deleteTransaction,
       loadTransactions,
       getWeeklyCategoryStats,
+      migrateData,
     }}>
       {children}
     </TransactionContext.Provider>
