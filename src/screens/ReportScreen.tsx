@@ -10,15 +10,21 @@ import {
   RefreshControl,
   TouchableOpacity,
   Alert,
+  Modal,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useTransactions } from '../context/TransactionContext';
 import { EXPENSE_TYPE_LABELS, EXPENSE_TYPE_COLORS } from '../constants/categories';
 
+type PeriodType = 'today' | 'week' | 'month';
+
 export const ReportScreen = () => {
   const { transactions, deleteTransaction, loadTransactions } = useTransactions();
   const [refreshing, setRefreshing] = useState(false);
   const [toastVisible, setToastVisible] = useState(false);
+  const [showDetailModal, setShowDetailModal] = useState(false);
+  const [selectedPeriod, setSelectedPeriod] = useState<PeriodType>('today');
+  const [selectedPeriodLabel, setSelectedPeriodLabel] = useState('');
 
   // Reload when screen focuses
   useFocusEffect(
@@ -33,7 +39,44 @@ export const ReportScreen = () => {
     setRefreshing(false);
   };
 
-  const handleDelete = (id) => {
+  // Handle opening detail modal
+  const handleShowDetails = (period: PeriodType, label: string) => {
+    setSelectedPeriod(period);
+    setSelectedPeriodLabel(label);
+    setShowDetailModal(true);
+  };
+
+  // Get filtered transactions based on selected period
+  const getFilteredTransactions = () => {
+    const now = new Date();
+    
+    switch (selectedPeriod) {
+      case 'today':
+        const today = now.toDateString();
+        return transactions.filter(t => 
+          new Date(t.transactionDate).toDateString() === today
+        );
+      
+      case 'week':
+        const weekAgo = new Date();
+        weekAgo.setDate(now.getDate() - 7);
+        return transactions.filter(t => 
+          new Date(t.transactionDate) >= weekAgo
+        );
+      
+      case 'month':
+        const monthStart = new Date();
+        monthStart.setDate(1);
+        return transactions.filter(t => 
+          new Date(t.transactionDate) >= monthStart
+        );
+      
+      default:
+        return transactions;
+    }
+  };
+
+  const handleDelete = (id: string) => {
     Alert.alert(
       'Xóa chi tiêu',
       'Bạn có chắc muốn xóa?',
@@ -56,15 +99,15 @@ export const ReportScreen = () => {
     );
   };
 
-  // Calculate totals - FIXED to use new date fields
+  // Calculate totals
   const today = new Date().toDateString();
   const todayTotal = transactions
-    .filter(t => new Date(t.transactionDate || t.timestamp).toDateString() === today)
+    .filter(t => new Date(t.transactionDate).toDateString() === today)
     .reduce((sum, t) => sum + t.amount, 0);
 
   const weekTotal = transactions
     .filter(t => {
-      const date = new Date(t.transactionDate || t.timestamp);
+      const date = new Date(t.transactionDate);
       const weekAgo = new Date();
       weekAgo.setDate(weekAgo.getDate() - 7);
       return date >= weekAgo;
@@ -73,7 +116,7 @@ export const ReportScreen = () => {
 
   const monthTotal = transactions
     .filter(t => {
-      const date = new Date(t.transactionDate || t.timestamp);
+      const date = new Date(t.transactionDate);
       const monthStart = new Date();
       monthStart.setDate(1);
       return date >= monthStart;
@@ -94,72 +137,113 @@ export const ReportScreen = () => {
       >
         {/* Summary Cards */}
         <View style={styles.summaryContainer}>
-          <View style={styles.summaryCard}>
-            <Text style={styles.summaryLabel}>Hôm nay</Text>
+          <TouchableOpacity 
+            style={styles.summaryCard}
+            onPress={() => handleShowDetails('today', 'Hôm nay')}
+          >
+            <View style={styles.summaryHeader}>
+              <Text style={styles.summaryLabel}>Hôm nay</Text>
+              <Text style={styles.detailButton}>Xem chi tiết</Text>
+            </View>
             <Text style={styles.summaryAmount}>
               {todayTotal.toLocaleString('vi-VN')}₫
             </Text>
-          </View>
+          </TouchableOpacity>
 
-          <View style={styles.summaryCard}>
-            <Text style={styles.summaryLabel}>Tuần này</Text>
+          <TouchableOpacity 
+            style={styles.summaryCard}
+            onPress={() => handleShowDetails('week', 'Tuần này')}
+          >
+            <View style={styles.summaryHeader}>
+              <Text style={styles.summaryLabel}>Tuần này</Text>
+              <Text style={styles.detailButton}>Xem chi tiết</Text>
+            </View>
             <Text style={styles.summaryAmount}>
               {weekTotal.toLocaleString('vi-VN')}₫
             </Text>
-          </View>
+          </TouchableOpacity>
 
-          <View style={styles.summaryCard}>
-            <Text style={styles.summaryLabel}>Tháng này</Text>
+          <TouchableOpacity 
+            style={styles.summaryCard}
+            onPress={() => handleShowDetails('month', 'Tháng này')}
+          >
+            <View style={styles.summaryHeader}>
+              <Text style={styles.summaryLabel}>Tháng này</Text>
+              <Text style={styles.detailButton}>Xem chi tiết</Text>
+            </View>
             <Text style={styles.summaryAmount}>
               {monthTotal.toLocaleString('vi-VN')}₫
             </Text>
-          </View>
+          </TouchableOpacity>
         </View>
 
-        {/* Transaction List */}
-        <View style={styles.transactionSection}>
-          <Text style={styles.sectionTitle}>Chi tiết</Text>
-          {transactions.length === 0 ? (
-            <Text style={styles.emptyText}>Chưa có giao dịch nào</Text>
-          ) : (
-            transactions.map((t) => (
-              <TouchableOpacity
-                key={t.id}
-                style={styles.transactionItem}
-                onLongPress={() => handleDelete(t.id)}
-              >
-                <View style={styles.transactionLeft}>
-                  <Text style={styles.transactionIcon}>{t.categoryIcon}</Text>
-                  <View style={styles.transactionInfo}>
-                    <Text style={styles.transactionName}>
-                      {t.description || t.categoryName}
-                    </Text>
-                    <Text style={styles.transactionTime}>
-                      {new Date(t.transactionDate || t.timestamp).toLocaleTimeString('vi-VN', {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
-                    </Text>
-                  </View>
-                </View>
-                <View style={styles.transactionRight}>
-                  <Text style={styles.transactionAmount}>
-                    {t.amount.toLocaleString('vi-VN')}₫
-                  </Text>
-                  {t.expenseType && (
-                    <Text style={[
-                      styles.expenseTypeLabel,
-                      { color: EXPENSE_TYPE_COLORS[t.expenseType] || '#666' }
-                    ]}>
-                      {EXPENSE_TYPE_LABELS[t.expenseType] || t.expenseType}
-                    </Text>
-                  )}
-                </View>
-              </TouchableOpacity>
-            ))
-          )}
-        </View>
       </ScrollView>
+
+      {/* Detail Modal */}
+      <Modal
+        visible={showDetailModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowDetailModal(false)}
+      >
+        <SafeAreaView style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>
+              Chi tiết - {selectedPeriodLabel}
+            </Text>
+            <TouchableOpacity 
+              style={styles.closeButton}
+              onPress={() => setShowDetailModal(false)}
+            >
+              <Text style={styles.closeButtonText}>Đóng</Text>
+            </TouchableOpacity>
+          </View>
+          
+          <ScrollView style={styles.modalContent}>
+            {getFilteredTransactions().length === 0 ? (
+              <Text style={styles.emptyText}>Chưa có giao dịch nào</Text>
+            ) : (
+              getFilteredTransactions().map((t) => (
+                <TouchableOpacity
+                  key={t.id}
+                  style={styles.transactionItem}
+                  onLongPress={() => handleDelete(t.id)}
+                >
+                  <View style={styles.transactionLeft}>
+                    <Text style={styles.transactionIcon}>{t.categoryIcon}</Text>
+                    <View style={styles.transactionInfo}>
+                      <Text style={styles.transactionName}>
+                        {t.description || t.categoryName}
+                      </Text>
+                      <Text style={styles.transactionTime}>
+                        {new Date(t.transactionDate).toLocaleString('vi-VN', {
+                          day: '2-digit',
+                          month: '2-digit',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={styles.transactionRight}>
+                    <Text style={styles.transactionAmount}>
+                      {t.amount.toLocaleString('vi-VN')}₫
+                    </Text>
+                    {t.expenseType && (
+                      <Text style={[
+                        styles.expenseTypeLabel,
+                        { color: EXPENSE_TYPE_COLORS[t.expenseType] || '#666' }
+                      ]}>
+                        {EXPENSE_TYPE_LABELS[t.expenseType] || t.expenseType}
+                      </Text>
+                    )}
+                  </View>
+                </TouchableOpacity>
+              ))
+            )}
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
 
       {/* Simple Toast */}
       {toastVisible && (
@@ -193,11 +277,26 @@ const styles = StyleSheet.create({
     padding: 20,
     borderRadius: 12,
     marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  summaryHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
   },
   summaryLabel: {
     fontSize: 14,
     color: '#666',
-    marginBottom: 8,
+  },
+  detailButton: {
+    fontSize: 12,
+    color: '#007AFF',
+    fontWeight: '500',
   },
   summaryAmount: {
     fontSize: 32,
@@ -270,5 +369,34 @@ const styles = StyleSheet.create({
   toastText: {
     color: '#fff',
     fontSize: 14,
+  },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: '#F2F2F7',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0E0E0',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+  },
+  closeButton: {
+    padding: 5,
+  },
+  closeButtonText: {
+    color: '#007AFF',
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  modalContent: {
+    flex: 1,
+    padding: 20,
   },
 });
