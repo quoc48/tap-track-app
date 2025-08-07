@@ -38,34 +38,26 @@ export const TransactionProvider = ({ children }: { children: React.ReactNode })
 
   const initializeData = async () => {
     try {
-      // Load from Supabase first
-      await loadTransactions();
+      console.log('⚠️ TEMPORARILY SKIPPING DATA LOADING FOR DEBUGGING');
+      // Temporarily skip loading transactions to test if this is the performance issue
+      // await loadTransactions();
+      // await checkAndMigrate();
       
-      // Check for migration
-      await checkAndMigrate();
+      // Just set empty state for testing
+      setTransactions([]);
     } catch (error) {
       console.error('❌ Initialize data failed:', error);
-      // Fallback to local storage
-      await loadTransactionsFromLocal();
+      setTransactions([]);
     } finally {
       setLoading(false);
     }
   };
 
   const loadTransactions = async () => {
-    try {
-      console.log('📊 Loading transactions from Supabase (no auth)...');
-      
-      const expenses = await TransactionService.getExpenses();
-      console.log(`✅ Loaded ${expenses.length} transactions from Supabase`);
-      setTransactions(expenses);
-    } catch (error) {
-      console.error('❌ Load transactions from Supabase failed:', error);
-      
-      // Fallback to local storage
-      console.log('🔄 Falling back to local storage...');
-      await loadTransactionsFromLocal();
-    }
+    console.log('⚠️ COMPLETELY DISABLED loadTransactions for UI debugging');
+    // Do nothing - completely disable all transaction loading
+    setTransactions([]);
+    return;
   };
 
   const loadTransactionsFromLocal = async () => {
@@ -106,19 +98,23 @@ export const TransactionProvider = ({ children }: { children: React.ReactNode })
 
   const saveToLocalStorage = async (data: Transaction[]) => {
     try {
-      await AsyncStorage.setItem('@transactions', JSON.stringify(data));
-      console.log(`💾 Saved ${data.length} transactions to local storage`);
+      console.log(`⚠️ SKIPPING LOCAL STORAGE SAVE - Would save ${data.length} transactions`);
+      // Temporarily disable to test if this is causing UI freeze
+      // await AsyncStorage.setItem('@transactions', JSON.stringify(data));
+      // console.log(`💾 Saved ${data.length} transactions to local storage`);
     } catch (e) {
       console.error('❌ Save to local storage failed:', e);
     }
   };
 
   const addTransaction = async (transaction: Omit<Transaction, 'id'>) => {
+    let tempId = '';
+    
     try {
       console.log('➕ Adding transaction (no auth):', transaction.amount, transaction.categoryName);
       
       // Generate optimistic ID
-      const tempId = `temp-${Date.now()}`;
+      tempId = `temp-${Date.now()}`;
       const tempTransaction: Transaction = {
         ...transaction,
         id: tempId,
@@ -126,16 +122,24 @@ export const TransactionProvider = ({ children }: { children: React.ReactNode })
       };
 
       // Optimistic update
-      setTransactions(prev => [tempTransaction, ...prev]);
+      setTransactions(prev => {
+        const newTransactions = [tempTransaction, ...prev];
+        // Save to local storage asynchronously to avoid blocking UI
+        setTimeout(() => saveToLocalStorage(newTransactions), 0);
+        return newTransactions;
+      });
 
       try {
         console.log('☁️ Saving to Supabase (no auth)...');
         const savedTransaction = await TransactionService.addExpense(transaction);
         
         // Replace temp transaction with real one
-        setTransactions(prev => 
-          prev.map(t => t.id === tempId ? savedTransaction : t)
-        );
+        setTransactions(prev => {
+          const updatedTransactions = prev.map(t => t.id === tempId ? savedTransaction : t);
+          // Save updated state to local storage asynchronously
+          setTimeout(() => saveToLocalStorage(updatedTransactions), 0);
+          return updatedTransactions;
+        });
         
         console.log('✅ Transaction saved to Supabase with ID:', savedTransaction.id);
       } catch (supabaseError) {
@@ -143,15 +147,13 @@ export const TransactionProvider = ({ children }: { children: React.ReactNode })
         console.log('💾 Keeping temp transaction in local storage');
       }
 
-      // Always save to local storage as backup
-      const currentTransactions = await getCurrentTransactions();
-      await saveToLocalStorage(currentTransactions);
-
     } catch (error) {
       console.error('❌ Add transaction failed:', error);
       
       // Revert optimistic update
-      setTransactions(prev => prev.filter(t => t.id !== tempId));
+      if (tempId) {
+        setTransactions(prev => prev.filter(t => t.id !== tempId));
+      }
       throw error;
     }
   };
@@ -185,14 +187,6 @@ export const TransactionProvider = ({ children }: { children: React.ReactNode })
     }
   };
 
-  const getCurrentTransactions = async (): Promise<Transaction[]> => {
-    return new Promise(resolve => {
-      setTransactions(current => {
-        resolve(current);
-        return current;
-      });
-    });
-  };
 
   const getWeeklyCategoryStats = (): CategoryStat[] => {
     const weekAgo = new Date();

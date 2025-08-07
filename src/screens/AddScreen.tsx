@@ -26,10 +26,19 @@ import { ExpenseType, Category } from '../types';
 // Remove KeyboardAwareScrollView - use native ScrollView
 import { ScrollView } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
+import { VoiceInputFallback } from '../components/VoiceInputFallback';
+import { parseVietnameseTransaction } from '../utils/voiceParser';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 export const AddScreen = () => {
+  const renderCount = React.useRef(0);
+  renderCount.current++;
+  
+  // More detailed render logging
+  const startTime = Date.now();
+  console.log(`🔄 AddScreen rendering... (count: ${renderCount.current}) at ${startTime}`);
+  
   const [amount, setAmount] = useState('');
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
@@ -37,6 +46,17 @@ export const AddScreen = () => {
   const [selectedType, setSelectedType] = useState<ExpenseType>(ExpenseType.REQUIRED);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showVoiceModal, setShowVoiceModal] = useState(false);
+  const [voiceParsedData, setVoiceParsedData] = useState<any>(null);
+  
+  console.log('📊 AddScreen state:', {
+    amount: amount.length,
+    showConfirmModal,
+    showVoiceModal,
+    hasCategory: !!selectedCategory,
+    showDatePicker,
+    renderCount: renderCount.current
+  });
   
   const { transactions, addTransaction, getWeeklyCategoryStats } = useTransactions();
   const hiddenInputRef = useRef(null);
@@ -49,6 +69,8 @@ export const AddScreen = () => {
       Keyboard.dismiss();
       setShowConfirmModal(false);
       setShowDatePicker(false);
+      setShowVoiceModal(false);
+      setVoiceParsedData(null);
       
       // Ensure scroll view is responsive
       if (scrollViewRef.current) {
@@ -123,8 +145,214 @@ export const AddScreen = () => {
   }, []);
 
   const handleVoiceInput = useCallback(() => {
-    Alert.alert('Voice Input', 'Tính năng này sẽ sớm ra mắt!');
+    setShowVoiceModal(true);
   }, []);
+  
+  // Test function to isolate the freeze issue
+  const testNormalInteraction = useCallback(() => {
+    console.log('🧪 TESTING: Completely isolated interaction test');
+    
+    // Test 1: Just console logs with no state changes
+    setTimeout(() => {
+      console.log('🧪 TEST 1A: Basic setTimeout callback');
+      
+      setTimeout(() => {
+        console.log('🧪 TEST 1B: Nested setTimeout callback');
+        
+        // Test 2: Try a single harmless state update
+        console.log('🧪 TEST 2: About to try harmless state update');
+        setShowDatePicker(false); // This should be safe since it's already false
+        
+        setTimeout(() => {
+          console.log('🧪 TEST 3: After harmless state update');
+          
+          // Test 4: Monitor for responsiveness 
+          let monitorCount = 0;
+          const monitor = setInterval(() => {
+            monitorCount++;
+            console.log(`🧪 MONITOR ${monitorCount}: UI responsive check at ${new Date().getTime()}`);
+            
+            if (monitorCount >= 10) {
+              clearInterval(monitor);
+              console.log('🧪 FINAL: Normal test complete - check if UI still responsive');
+            }
+          }, 300);
+        }, 50);
+      }, 50);
+    }, 50);
+  }, []);
+
+  // Test function to simulate voice flow WITHOUT actually using voice components
+  const testVoiceFlowSimulation = useCallback(() => {
+    console.log('🎭 SIMULATING: Voice flow without voice components');
+    
+    // Simulate the exact same state changes that voice input would make
+    setTimeout(() => {
+      console.log('🎭 STEP 1: Simulating voice input result processing');
+      
+      // Simulate what handleVoiceResult would do
+      const fakeVoiceText = "mua cà phê 25 nghìn";
+      const parsed = parseVietnameseTransaction(fakeVoiceText);
+      console.log('🎭 STEP 2: Parsed fake voice data:', parsed);
+      
+      if (parsed.confidence > 30) {
+        console.log('🎭 STEP 3: Would normally set voice parsed data');
+        // setVoiceParsedData({ ...parsed, originalText: fakeVoiceText });
+        // setShowVoiceModal(false);
+        
+        console.log('🎭 STEP 4: Simulating showVoiceConfirmation...');
+        // Instead of showing voice confirmation, just test the same flow
+        
+        setTimeout(() => {
+          console.log('🎭 STEP 5: Simulating direct transaction save...');
+          
+          // Simulate saveVoiceTransaction without actual saving
+          console.log('🎭 STEP 6: Would clear voice states');
+          setVoiceParsedData(null);
+          
+          console.log('🎭 STEP 7: Testing continued responsiveness after simulation');
+          
+          // Monitor like the real voice flow
+          let monitorCount = 0;
+          const monitor = setInterval(() => {
+            monitorCount++;
+            console.log(`🎭 MONITOR ${monitorCount}: Simulated flow - UI responsive at ${new Date().getTime()}`);
+            
+            if (monitorCount >= 8) {
+              clearInterval(monitor);
+              console.log('🎭 FINAL: Voice simulation complete - check if UI is responsive');
+            }
+          }, 400);
+        }, 100);
+      }
+    }, 50);
+  }, []);
+
+  const handleVoiceResult = useCallback((voiceText: string) => {
+    console.log('Voice result:', voiceText);
+    const parsed = parseVietnameseTransaction(voiceText);
+    console.log('Parsed data:', parsed);
+    
+    if (parsed.confidence > 30) {
+      setVoiceParsedData({
+        ...parsed,
+        originalText: voiceText,
+      });
+      setShowVoiceModal(false);
+      // Show confirmation with parsed data immediately
+      showVoiceConfirmation(parsed, voiceText);
+    } else {
+      Alert.alert(
+        'Không hiểu rõ',
+        `Tôi nghe được: "${voiceText}"\n\nVui lòng thử lại với cú pháp rõ ràng hơn.`,
+        [
+          { text: 'Thử lại', onPress: () => {} },
+          { text: 'Đóng', onPress: () => setShowVoiceModal(false) }
+        ]
+      );
+    }
+  }, [showVoiceConfirmation]);
+
+  const handleVoiceError = useCallback((error: string) => {
+    console.log('Voice error:', error);
+    // Clean up voice states on error
+    setShowVoiceModal(false);
+    setVoiceParsedData(null);
+    Alert.alert('Lỗi', error);
+  }, []);
+
+  const showVoiceConfirmation = useCallback((parsed: any, originalText: string) => {
+    const message = `Tôi hiểu:\n\n` +
+      `💰 Số tiền: ${parsed.amount ? parsed.amount.toLocaleString('vi-VN') + '₫' : 'Không xác định'}\n` +
+      `🏷️ Danh mục: ${parsed.category?.name || 'Không xác định'}\n` +
+      `📝 Mô tả: ${parsed.description || originalText}\n\n` +
+      `Bạn có muốn lưu giao dịch này không?`;
+
+    Alert.alert(
+      'Xác nhận giao dịch',
+      message,
+      [
+        { text: 'Sửa', onPress: () => fillFormFromVoice(parsed) },
+        { text: 'Hủy', style: 'cancel' },
+        { text: 'Lưu ngay', onPress: () => saveVoiceTransaction(parsed) }
+      ]
+    );
+  }, [fillFormFromVoice, saveVoiceTransaction]);
+
+  const fillFormFromVoice = useCallback((parsed: any) => {
+    // Auto-fill the form with voice data
+    if (parsed.amount > 0) {
+      setAmount(parsed.amount.toString());
+    }
+    if (parsed.category) {
+      setSelectedCategory(parsed.category);
+    }
+    if (parsed.description) {
+      setDescription(parsed.description);
+    }
+    if (parsed.expenseType) {
+      setSelectedType(parsed.expenseType);
+    }
+    
+    // Clear voice-related states
+    setShowVoiceModal(false);
+    setVoiceParsedData(null);
+  }, []);
+
+  const saveVoiceTransaction = useCallback(async (parsed: any) => {
+    console.log('🎤 TESTING: Voice save with Alert.alert');
+    
+    try {
+      // Clear voice states first
+      setShowVoiceModal(false);
+      setVoiceParsedData(null);
+      
+      // Test the actual transaction save
+      await addTransaction({
+        amount: parsed.amount,
+        description: parsed.description || `${parsed.category?.name} ${parsed.amount.toLocaleString('vi-VN')}₫`,
+        categoryId: parsed.category?.id || 'default',
+        categoryName: parsed.category?.name || 'Tạp hoá',
+        categoryIcon: parsed.category?.icon || '🛒',
+        expenseType: parsed.expenseType || 'incidental',
+        transactionDate: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
+      });
+
+      console.log('✅ Transaction saved, now testing Alert.alert...');
+      
+      // THIS IS THE TEST - does Alert.alert cause the freeze?
+      Alert.alert(
+        '✅ Thành công', 
+        'Đã lưu giao dịch từ giọng nói!',
+        [
+          { 
+            text: 'OK', 
+            onPress: () => {
+              console.log('🎯 Alert.alert OK pressed - testing if UI is responsive');
+              
+              // Monitor responsiveness after Alert.alert
+              let monitorCount = 0;
+              const monitor = setInterval(() => {
+                monitorCount++;
+                console.log(`🎯 ALERT MONITOR ${monitorCount}: UI responsive after Alert.alert at ${new Date().getTime()}`);
+                
+                if (monitorCount >= 8) {
+                  clearInterval(monitor);
+                  console.log('🎯 ALERT MONITOR COMPLETE: Check if UI is responsive now!');
+                }
+              }, 400);
+            }
+          }
+        ],
+        { cancelable: true }
+      );
+      
+    } catch (error) {
+      console.error('❌ Error in voice transaction save:', error);
+      Alert.alert('Lỗi', 'Không thể lưu giao dịch');
+    }
+  }, [addTransaction]);
 
   const closeModal = useCallback(() => {
     Keyboard.dismiss();
@@ -133,6 +361,12 @@ export const AddScreen = () => {
     setSelectedDate(new Date());
     setShowDatePicker(false);
   }, []);
+
+  // Log when render completes
+  React.useLayoutEffect(() => {
+    const endTime = Date.now();
+    console.log(`✅ AddScreen render completed in ${endTime - startTime}ms (render #${renderCount.current})`);
+  });
 
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
@@ -153,6 +387,8 @@ export const AddScreen = () => {
           keyboardShouldPersistTaps="handled"
           removeClippedSubviews={false}
           maintainVisibleContentPosition={null}
+          scrollEnabled={true}
+          nestedScrollEnabled={false}
         >
           {/* Header */}
           <View style={styles.header}>
@@ -177,11 +413,12 @@ export const AddScreen = () => {
             >
               <Ionicons name="mic" size={24} color="#007AFF" />
             </TouchableOpacity>
+            
           </View>
 
           <View style={styles.instructionContainer}>
             <Text style={styles.instructionText}>
-              Nhấn vào số tiền để nhập
+              Nhấn vào số tiền để nhập | Nhấn mic để nhập bằng giọng nói
             </Text>
           </View>
 
@@ -357,6 +594,31 @@ export const AddScreen = () => {
             maximumDate={new Date()}
           />
         )}
+
+        {/* TESTING: Voice modal with simplified VoiceInputFallback */}
+        <Modal
+          visible={showVoiceModal}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={() => setShowVoiceModal(false)}
+        >
+          <View style={styles.voiceModalOverlay}>
+            <VoiceInputFallback
+              onVoiceResult={handleVoiceResult}
+              onError={handleVoiceError}
+            />
+            
+            <TouchableOpacity
+              style={styles.voiceModalClose}
+              onPress={() => {
+                console.log('🧪 Closing modal with simplified component');
+                setShowVoiceModal(false);
+              }}
+            >
+              <Text style={styles.voiceModalCloseText}>Đóng</Text>
+            </TouchableOpacity>
+          </View>
+        </Modal>
       </SafeAreaView>
     </TouchableWithoutFeedback>
   );
@@ -617,5 +879,47 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#FFFFFF',
+  },
+  voiceModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  voiceModalContent: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 30,
+    marginHorizontal: 20,
+    alignItems: 'center',
+    minWidth: 300,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 5,
+  },
+  voiceModalTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    marginBottom: 10,
+    textAlign: 'center',
+  },
+  voiceModalSubtitle: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+    marginBottom: 20,
+    lineHeight: 20,
+  },
+  voiceModalClose: {
+    marginTop: 20,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+  },
+  voiceModalCloseText: {
+    fontSize: 16,
+    color: '#007AFF',
+    fontWeight: '500',
   },
 });

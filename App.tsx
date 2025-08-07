@@ -5,6 +5,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { AddScreen } from './src/screens/AddScreen';
 import { ReportScreen } from './src/screens/ReportScreen';
+import { TestScreen } from './src/screens/TestScreen';
 import { TransactionProvider } from './src/context/TransactionContext';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -73,6 +74,26 @@ export default function App() {
                 }}>
                   <Ionicons 
                     name={focused ? "stats-chart" : "stats-chart-outline"} 
+                    size={24} 
+                    color={color} 
+                  />
+                </View>
+              ),
+            }}
+          />
+          <Tab.Screen 
+            name="Test" 
+            component={TestScreen}
+            options={{
+              tabBarLabel: 'Test',
+              tabBarIcon: ({ color, focused }) => (
+                <View style={{
+                  backgroundColor: focused ? '#E3F2FD' : 'transparent',
+                  padding: 8,
+                  borderRadius: 20,
+                }}>
+                  <Ionicons 
+                    name={focused ? "flask" : "flask-outline"} 
                     size={24} 
                     color={color} 
                   />
