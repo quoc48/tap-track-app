@@ -1,4 +1,4 @@
-// src/context/TransactionContext.tsx - NO AUTH VERSION
+// src/context/TransactionContext.tsx
 import * as React from 'react';
 const { createContext, useContext, useState, useEffect } = React;
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -32,19 +32,14 @@ export const TransactionProvider = ({ children }: { children: React.ReactNode })
   const [isAuthenticated] = useState(true); // Always authenticated for testing
 
   useEffect(() => {
-    console.log('🔄 TransactionProvider initializing (no auth mode)...');
+    console.log('🔄 TransactionProvider initializing...');
     initializeData();
   }, []);
 
   const initializeData = async () => {
     try {
-      console.log('⚠️ TEMPORARILY SKIPPING DATA LOADING FOR DEBUGGING');
-      // Temporarily skip loading transactions to test if this is the performance issue
-      // await loadTransactions();
-      // await checkAndMigrate();
-      
-      // Just set empty state for testing
-      setTransactions([]);
+      await loadTransactions();
+      await checkAndMigrate();
     } catch (error) {
       console.error('❌ Initialize data failed:', error);
       setTransactions([]);
@@ -54,10 +49,17 @@ export const TransactionProvider = ({ children }: { children: React.ReactNode })
   };
 
   const loadTransactions = async () => {
-    console.log('⚠️ COMPLETELY DISABLED loadTransactions for UI debugging');
-    // Do nothing - completely disable all transaction loading
-    setTransactions([]);
-    return;
+    try {
+      console.log('☁️ Loading transactions from Supabase...');
+      const supabaseTransactions = await TransactionService.getExpenses();
+      console.log(`✅ Loaded ${supabaseTransactions.length} transactions from Supabase`);
+      setTransactions(supabaseTransactions);
+    } catch (error) {
+      console.error('❌ Failed to load from Supabase:', error);
+      // Fallback to local storage
+      console.log('📱 Falling back to local storage...');
+      await loadTransactionsFromLocal();
+    }
   };
 
   const loadTransactionsFromLocal = async () => {
@@ -98,10 +100,8 @@ export const TransactionProvider = ({ children }: { children: React.ReactNode })
 
   const saveToLocalStorage = async (data: Transaction[]) => {
     try {
-      console.log(`⚠️ SKIPPING LOCAL STORAGE SAVE - Would save ${data.length} transactions`);
-      // Temporarily disable to test if this is causing UI freeze
-      // await AsyncStorage.setItem('@transactions', JSON.stringify(data));
-      // console.log(`💾 Saved ${data.length} transactions to local storage`);
+      await AsyncStorage.setItem('@transactions', JSON.stringify(data));
+      console.log(`💾 Saved ${data.length} transactions to local storage`);
     } catch (e) {
       console.error('❌ Save to local storage failed:', e);
     }

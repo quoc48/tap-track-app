@@ -123,6 +123,45 @@ export const ReportScreen = () => {
     })
     .reduce((sum, t) => sum + t.amount, 0);
 
+  // Calculate year total
+  const yearTotal = transactions
+    .filter(t => {
+      const date = new Date(t.transactionDate);
+      const yearStart = new Date();
+      yearStart.setMonth(0, 1); // January 1st
+      return date >= yearStart;
+    })
+    .reduce((sum, t) => sum + t.amount, 0);
+
+  // Calculate category totals (sorted ascending)
+  const categoryTotals = React.useMemo(() => {
+    const categoryMap = new Map();
+    
+    transactions.forEach(t => {
+      const categoryKey = t.categoryName || 'Khác';
+      const categoryIcon = t.categoryIcon || '📝';
+      
+      if (categoryMap.has(categoryKey)) {
+        categoryMap.set(categoryKey, {
+          ...categoryMap.get(categoryKey),
+          total: categoryMap.get(categoryKey).total + t.amount,
+          count: categoryMap.get(categoryKey).count + 1,
+        });
+      } else {
+        categoryMap.set(categoryKey, {
+          name: categoryKey,
+          icon: categoryIcon,
+          total: t.amount,
+          count: 1,
+        });
+      }
+    });
+    
+    // Convert to array and sort by total (ascending)
+    return Array.from(categoryMap.values())
+      .sort((a, b) => a.total - b.total);
+  }, [transactions]);
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
@@ -175,7 +214,47 @@ export const ReportScreen = () => {
               {monthTotal.toLocaleString('vi-VN')}₫
             </Text>
           </TouchableOpacity>
+
+          <View style={[styles.summaryCard, styles.yearCard]}>
+            <View style={styles.summaryHeader}>
+              <Text style={[styles.summaryLabel, styles.yearLabel]}>Tổng chi tiêu năm nay</Text>
+              <Text style={styles.yearBadge}>2025</Text>
+            </View>
+            <Text style={[styles.summaryAmount, styles.yearAmount]}>
+              {yearTotal.toLocaleString('vi-VN')}₫
+            </Text>
+          </View>
         </View>
+
+        {/* Category Breakdown Section */}
+        {categoryTotals.length > 0 && (
+          <View style={styles.categorySection}>
+            <Text style={styles.sectionTitle}>Chi tiêu theo danh mục</Text>
+            <Text style={styles.sectionSubtitle}>Sắp xếp từ thấp đến cao</Text>
+            
+            {categoryTotals.map((category, index) => (
+              <View key={category.name} style={styles.categoryItem}>
+                <View style={styles.categoryLeft}>
+                  <Text style={styles.categoryIcon}>{category.icon}</Text>
+                  <View style={styles.categoryInfo}>
+                    <Text style={styles.categoryName}>{category.name}</Text>
+                    <Text style={styles.categoryCount}>
+                      {category.count} giao dịch
+                    </Text>
+                  </View>
+                </View>
+                <View style={styles.categoryRight}>
+                  <Text style={styles.categoryAmount}>
+                    {category.total.toLocaleString('vi-VN')}₫
+                  </Text>
+                  <View style={styles.categoryRank}>
+                    <Text style={styles.rankText}>#{index + 1}</Text>
+                  </View>
+                </View>
+              </View>
+            ))}
+          </View>
+        )}
 
       </ScrollView>
 
@@ -301,6 +380,91 @@ const styles = StyleSheet.create({
   summaryAmount: {
     fontSize: 32,
     fontWeight: '600',
+  },
+  yearCard: {
+    backgroundColor: '#007AFF',
+  },
+  yearLabel: {
+    color: '#FFFFFF',
+    fontWeight: '600',
+  },
+  yearBadge: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '600',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  yearAmount: {
+    color: '#FFFFFF',
+  },
+  categorySection: {
+    padding: 20,
+    paddingTop: 0,
+  },
+  sectionSubtitle: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 16,
+    marginTop: -8,
+  },
+  categoryItem: {
+    backgroundColor: '#FFFFFF',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 8,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  categoryLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  categoryIcon: {
+    fontSize: 20,
+    marginRight: 12,
+  },
+  categoryInfo: {
+    flex: 1,
+  },
+  categoryName: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#333',
+  },
+  categoryCount: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 2,
+  },
+  categoryRight: {
+    alignItems: 'flex-end',
+  },
+  categoryAmount: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#333',
+  },
+  categoryRank: {
+    backgroundColor: '#F0F0F0',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+    marginTop: 4,
+  },
+  rankText: {
+    fontSize: 10,
+    color: '#666',
+    fontWeight: '500',
   },
   transactionSection: {
     padding: 20,
